@@ -78,7 +78,7 @@ def run_pipeline_sync(job_id, job_store, settings, detector=None, **kwargs):
 
             # ── Save sample tiles for DPI confirmation preview ────────────────
             # The frontend shows tiles/{before|after}/before_N.png & after_N.png
-            tile_size = 640
+            tile_size = settings.TILE_SIZE
             sample_indices = []
             
             td_before = out / "tiles" / "before"
@@ -87,7 +87,7 @@ def run_pipeline_sync(job_id, job_store, settings, detector=None, **kwargs):
             td_after.mkdir(parents=True, exist_ok=True)
 
             # Save ALL tiles for comprehensive review, but only surface interesting ones for DPI check
-            for t in iter_tiles(fa, tile_size, 0.1):
+            for t in iter_tiles(fa, tile_size, settings.TILE_OVERLAP):
                 s_num = t["index"]
                 tx, ty = t["x"], t["y"]
                 
@@ -134,8 +134,13 @@ def run_pipeline_sync(job_id, job_store, settings, detector=None, **kwargs):
             callout_records: list[dict] = []
             tile_offsets:    dict       = {}
 
+            # Ensure the detector's thresholds match the job's DPI
+            if detector is not None and hasattr(detector, "dpi"):
+                detector.dpi = dpi
+                logger.info(f"Updated detector DPI to {dpi} for current job.")
+
             tile_count = 0
-            all_tiles = list(iter_tiles(fa, 640, 0.1))
+            all_tiles = list(iter_tiles(fa, settings.TILE_SIZE, settings.TILE_OVERLAP))
             total_tiles = len(all_tiles)
 
             for t in all_tiles:
@@ -148,7 +153,7 @@ def run_pipeline_sync(job_id, job_store, settings, detector=None, **kwargs):
                     _update(JobStatus.PROCESSING, 20.0 + (tile_count / total_tiles * 50.0), 
                            f"Analysing map... tile {tile_count}/{total_tiles}")
 
-                b_tile = fb[ty: ty + 640, tx: tx + 640]
+                b_tile = fb[ty: ty + settings.TILE_SIZE, tx: tx + settings.TILE_SIZE]
                 a_tile = t["tile"]
                 objs_b = detector.detect_objects(b_tile, conf_threshold=0.01)
                 objs_a = detector.detect_objects(a_tile, conf_threshold=0.01)
@@ -228,7 +233,7 @@ def run_pipeline_sync(job_id, job_store, settings, detector=None, **kwargs):
             })
 
             tile_offsets = {}
-            for t in iter_tiles(fa, 640, 0.1):
+            for t in iter_tiles(fa, settings.TILE_SIZE, settings.TILE_OVERLAP):
                 tile_offsets[t["index"]] = (t["x"], t["y"])
 
             generate_vector_report(

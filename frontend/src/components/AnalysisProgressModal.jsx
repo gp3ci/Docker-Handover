@@ -46,6 +46,7 @@ export const AnalysisProgressModal = ({
   const [waitStatus, setWaitStatus] = useState(null); // 'AWAITING_DPI_CONFIRM' or 'AWAITING_REVIEW'
   const [sampleTiles, setSampleTiles] = useState([]);
   const [flaggedTiles, setFlaggedTiles] = useState([]);
+  const [allCallouts, setAllCallouts] = useState([]);
 
   const pollerRef = useRef(null);
 
@@ -89,6 +90,7 @@ export const AnalysisProgressModal = ({
         } else if (res.status === 'AWAITING_REVIEW') {
           clearInterval(pollerRef.current);
           setFlaggedTiles(res.flagged_tiles || []);
+          setAllCallouts(res.all_callouts || []);
           setWaitStatus('AWAITING_REVIEW');
         } else if (res.status === 'COMPLETED') {
           clearInterval(pollerRef.current);
@@ -446,6 +448,7 @@ export const AnalysisProgressModal = ({
             status={waitStatus}
             sampleTiles={sampleTiles}
             flaggedTiles={flaggedTiles}
+            allCallouts={allCallouts}
             onProceed={() => setWaitStatus(null)}
             onAbort={onClose}
           />

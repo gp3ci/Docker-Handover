@@ -23,6 +23,7 @@ export const AnalysisVerificationModal = ({
   status,
   sampleTiles = [],
   flaggedTiles = [],
+  allCallouts = [],
   onProceed,
   onAbort
 }) => {
@@ -53,6 +54,10 @@ export const AnalysisVerificationModal = ({
 
   const isRemoved = (tileIdx) => overrides.find(o => o.tileIdx === tileIdx && o.action === 'REMOVE');
   const getRename = (tileIdx) => overrides.find(o => o.tileIdx === tileIdx && o.action === 'RENAME')?.newText;
+  const getOriginalCalloutText = (tileIdx) => {
+    const callout = allCallouts.find(c => c.tile_idx === tileIdx && c.type === 'FLAGGED');
+    return callout ? callout.text : "AI Identified Symbol";
+  };
 
   const handleAbort = async () => {
     if (!window.confirm("Are you sure you want to abort? This will clear current tiles and let you change DPI.")) return;
@@ -159,8 +164,8 @@ export const AnalysisVerificationModal = ({
 
               <div className="grid grid-cols-1 gap-4">
                 {flaggedTiles.map((tileIdx) => (
-                  <div key={tileIdx} className={`bg-slate-800/50 border border-slate-700 rounded-2xl p-4 flex flex-col md:flex-row gap-6 transition-opacity ${isRemoved(tileIdx) ? 'opacity-40 grayscale' : ''}`}>
-                    <div className="relative w-full md:w-48 aspect-square rounded-xl overflow-hidden border border-slate-600 bg-black flex-shrink-0">
+                  <div key={tileIdx} className={`bg-slate-800/50 border border-slate-700 rounded-2xl p-4 flex flex-col gap-6 transition-opacity ${isRemoved(tileIdx) ? 'opacity-40 grayscale' : ''}`}>
+                    <div className="relative w-full aspect-square rounded-xl overflow-hidden border border-slate-600 bg-black flex-shrink-0">
                        <img 
                           src={getTileUrl(jobId, 'after', tileIdx)}
                           alt="Flagged Frame" 
@@ -179,62 +184,69 @@ export const AnalysisVerificationModal = ({
                           {isRemoved(tileIdx) && <span className="text-[10px] text-red-400 font-bold uppercase">Marked for Removal</span>}
                        </div>
                        
-                       <div className="space-y-2 pb-4">
+                        <div className="space-y-2 pb-4">
                           <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-700 flex items-center justify-between group">
-                             <div className="flex flex-col flex-1">
-                                <span className="text-[10px] text-slate-500 uppercase font-bold">Callout Detection</span>
-                                {editingIdx === tileIdx ? (
-                                   <input 
-                                      autoFocus
-                                      className="bg-transparent border-b border-blue-500 text-blue-400 outline-none text-sm py-1"
-                                      defaultValue={getRename(tileIdx) || "Review Callout"}
-                                      onBlur={(e) => {
-                                         handleRenameCallout(tileIdx, e.target.value);
-                                         setEditingIdx(null);
-                                      }}
-                                      onKeyDown={(e) => {
-                                         if(e.key === 'Enter') {
-                                            handleRenameCallout(tileIdx, e.target.value);
-                                            setEditingIdx(null);
-                                         }
-                                      }}
-                                   />
+                            <div className="flex flex-col flex-1">
+                              <span className="text-[10px] text-slate-500 uppercase font-bold">Callout Detection</span>
+                              {editingIdx === tileIdx ? (
+                                <input
+                                  autoFocus
+                                  className="bg-transparent border-b border-blue-500 text-blue-400 outline-none text-sm py-1"
+                                  defaultValue={getRename(tileIdx) || getOriginalCalloutText(tileIdx)}
+                                  onBlur={(e) => {
+                                    handleRenameCallout(tileIdx, e.target.value);
+                                    setEditingIdx(null);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      handleRenameCallout(tileIdx, e.target.value);
+                                      setEditingIdx(null);
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                isRemoved(tileIdx) ? (
+                                  <span className="text-red-400 line-through text-sm">
+                                    {getRename(tileIdx) || getOriginalCalloutText(tileIdx)}
+                                  </span>
                                 ) : (
-                                   <span className="text-sky-400 text-sm font-medium">
-                                      {getRename(tileIdx) || "AI Identified Symbol"}
-                                   </span>
-                                )}
-                             </div>
-                             {!isRemoved(tileIdx) && (
-                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                   <button 
-                                      onClick={() => setEditingIdx(tileIdx)}
-                                      className="p-2 hover:bg-blue-500/20 text-blue-400 rounded-lg transition-colors"
-                                   >
-                                      <Edit3 size={16} />
-                                   </button>
-                                   <button 
-                                      onClick={() => handleRemoveCallout(tileIdx)}
-                                      className="p-2 hover:bg-red-500/20 text-red-500 rounded-lg transition-colors"
-                                   >
-                                      <Trash2 size={16} />
-                                   </button>
-                                </div>
-                             )}
-                             {isRemoved(tileIdx) && (
-                                <button 
-                                   onClick={() => setOverrides(prev => prev.filter(o => o.tileIdx !== tileIdx))}
-                                   className="text-xs text-blue-400 hover:underline"
+                                  <span className="text-sky-400 text-sm font-medium">
+                                    {getRename(tileIdx) || getOriginalCalloutText(tileIdx)}
+                                  </span>
+                                )
+                              )}
+                            </div>
+                            {/* Edit / Remove controls (visible on hover) */}
+                            {!isRemoved(tileIdx) && (
+                              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => setEditingIdx(tileIdx)}
+                                  className="p-2 hover:bg-blue-500/20 text-blue-400 rounded-lg transition-colors"
                                 >
-                                   Undo
+                                  <Edit3 size={16} />
                                 </button>
-                             )}
+                                <button
+                                  onClick={() => handleRemoveCallout(tileIdx)}
+                                  className="p-2 hover:bg-red-500/20 text-red-500 rounded-lg transition-colors"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            )}
+                            {isRemoved(tileIdx) && (
+                              <button
+                                onClick={() => setOverrides(prev => prev.filter(o => o.tileIdx !== tileIdx))}
+                                className="text-xs text-blue-400 hover:underline"
+                              >
+                                Undo
+                              </button>
+                            )}
                           </div>
                           <p className="text-[10px] text-slate-500 px-1 italic">
-                             {isRemoved(tileIdx) ? '* This callout will NOT appear in the final report.' : '* Click the edit icon to change the text.'}
+                            {isRemoved(tileIdx) ? '* This callout will NOT appear in the final report.' : '* Click the edit icon to change the text.'}
                           </p>
-                       </div>
-                    </div>
+                        </div>
+                     </div>
                   </div>
                 ))}
               </div>

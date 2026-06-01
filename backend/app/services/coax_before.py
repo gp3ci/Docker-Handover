@@ -159,9 +159,21 @@ def _overlay_on_pdf(
         is_bottom = start_y > (page.rect.height / 2)
 
     # ── Define rects ──────────────────────────────────────────────
+    if ss_w_pts > 0:
+        # Align text box to the outer page edge:
+        # If screenshot is on the left half, align text box to the left edge of the screenshot (start_x).
+        # If screenshot is on the right half, align text box to the right edge of the screenshot (start_x + ss_w_pts - text_box_w).
+        page_width = page_orig.rect.width
+        if (start_x + ss_w_pts / 2.0) < (page_width / 2.0):
+            x_offset = start_x
+        else:
+            x_offset = start_x + ss_w_pts - text_box_w
+    else:
+        x_offset = start_x
+
     if is_bottom:
         # Text box on top, image below
-        text_rect = fitz.Rect(start_x, start_y, start_x + text_box_w, start_y + text_box_h)
+        text_rect = fitz.Rect(x_offset, start_y, x_offset + text_box_w, start_y + text_box_h)
         ss_rect = fitz.Rect(
             start_x, start_y + text_box_h + gap,
             start_x + ss_w_pts, start_y + text_box_h + gap + ss_h_pts
@@ -170,8 +182,8 @@ def _overlay_on_pdf(
         # Image on top (standard), text box below
         ss_rect = fitz.Rect(start_x, start_y, start_x + ss_w_pts, start_y + ss_h_pts)
         text_rect = fitz.Rect(
-            start_x, start_y + ss_h_pts + gap,
-            start_x + text_box_w, start_y + ss_h_pts + gap + text_box_h
+            x_offset, start_y + ss_h_pts + gap,
+            x_offset + text_box_w, start_y + ss_h_pts + gap + text_box_h
         )
 
     # ── Draw onto page 0 (Survey Image + Text) ────────────────────
@@ -201,11 +213,11 @@ def _overlay_on_pdf(
         # If the page dimensions are different, we might need a new corner, 
         # but typically they are the same. We use the same start_x, start_y.
         # But let's recalculate the rect just in case.
-        text_rect_n = fitz.Rect(start_x, start_y, start_x + text_box_w, start_y + text_box_h)
+        text_rect_n = fitz.Rect(x_offset, start_y, x_offset + text_box_w, start_y + text_box_h)
         if not is_bottom:
             text_rect_n = fitz.Rect(
-                start_x, start_y + gap,
-                start_x + text_box_w, start_y + gap + text_box_h
+                x_offset, start_y + gap,
+                x_offset + text_box_w, start_y + gap + text_box_h
             )
             
         current_page.draw_rect(text_rect_n, color=(1, 0, 0), fill=(1, 1, 0), width=1.5)

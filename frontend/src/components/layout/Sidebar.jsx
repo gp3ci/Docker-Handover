@@ -7,7 +7,7 @@ export const Sidebar = ({ activeView, setActiveView }) => {
   const menuItems = [
     { id: 'intro', label: 'Intro', icon: <User size={20} /> },
     { id: 'before', label: 'Before', icon: <Map size={20} /> },
-    { id: 'after', label: 'After', icon: <MapPinned size={20} /> },
+    { id: 'after', label: 'Fiber', icon: <MapPinned size={20} /> },
     { id: 'coax', label: 'Coax', icon: <Zap size={20} /> },
     { id: 'instructions', label: 'Instructions', icon: <BookOpen size={20} /> },
     { id: 'help', label: 'How to Use', icon: <HelpCircle size={20} /> },

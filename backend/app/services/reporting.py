@@ -26,7 +26,7 @@ def _patch_annot_color(doc: fitz.Document, annot: fitz.Annot, font_size: int = 9
         doc.xref_set_key(annot.xref, "DA", f"(1 0 0 RG 0 0 0 rg /Helv {font_size} Tf)")
         doc.xref_set_key(
             annot.xref, "DS",
-            f"(font: Helv {font_size}pt; color: #000000; background-color: #FFFF00; border: 1.5pt solid #FF0000;)"
+            f"(font: Helv {font_size}pt; color: #000000; background-color: #FFFF00; border: 2pt solid #FF0000;)"
         )
     except Exception:
         pass
@@ -85,17 +85,19 @@ def generate_vector_report(
     doc = fitz.open(str(after_pdf_path))
     page = doc[0]
     placed_rects: list[fitz.Rect] = []
+    hard_rects: list[fitz.Rect] = []
 
     # ── Reserve title-box area so callouts avoid it ───────────────────────────
     page_rect = page.rect
     title_reserve = fitz.Rect(page_rect.width - 720, 0, page_rect.width, 350)
     placed_rects.append(title_reserve)
+    hard_rects.append(title_reserve)
 
     # ── Render callout annotations ────────────────────────────────────────────
     if callout_records:
         CALLOUT_FONT_SIZE = title_font_size
         DEDUP_RADIUS_PTS  = 50.0        # Merge identical labels within 50pt
-        ARROW_OFFSET_PTS  = 50.0        # Arrow tip stops 50pt from symbol center (well outside symbol edge)
+        ARROW_OFFSET_PTS  = 30.0        # Arrow tip stops close to the symbol (30pt)
         SEARCH_RADIUS_MAX = 600         # Max spiral search for free space
 
         unique: list[dict] = []
@@ -128,14 +130,6 @@ def generate_vector_report(
                     "is_design_note": rec.get("is_design_note", False)
                 })
 
-        def _is_empty(cx_img: float, cy_img: float, bw: float, bh: float) -> bool:
-            x1, y1 = int(cx_img - bw / 2), int(cy_img - bh / 2)
-            x2, y2 = int(cx_img + bw / 2), int(cy_img + bh / 2)
-            if x1 < 0 or y1 < 0 or x2 > w_img or y2 > h_img:
-                return False
-            roi = img_gray[y1:y2, x1:x2]
-            return roi.size > 0 and (np.sum(roi < 240) / roi.size) < 0.05
-
         for c in unique:
             cx_pdf, cy_pdf = c["pdf_x"], c["pdf_y"]
             text = c["text"]
@@ -143,8 +137,8 @@ def generate_vector_report(
             # The reference logic explicitly required img_x and img_y
             cx_img, cy_img = cx_pdf * (dpi / 72.0), cy_pdf * (dpi / 72.0)
 
-            # ── Exclusion zone: reserve 40pt radius around the symbol ─────────
-            SYMBOL_GUARD_PTS = 40.0
+            # ── Exclusion zone: reserve 35pt radius around the symbol ─────────
+            SYMBOL_GUARD_PTS = 35.0
             symbol_guard = fitz.Rect(
                 cx_pdf - SYMBOL_GUARD_PTS, cy_pdf - SYMBOL_GUARD_PTS,
                 cx_pdf + SYMBOL_GUARD_PTS, cy_pdf + SYMBOL_GUARD_PTS,
@@ -159,35 +153,51 @@ def generate_vector_report(
             bw_img = box_w * (dpi / 72.0)
             bh_img = box_h * (dpi / 72.0)
 
-            ex_img, ey_img = cx_img + 250, cy_img - 250
-            found = False
-
-            for r_img in np.arange(120 * (dpi / 72.0), 600 * (dpi / 72.0), 40 * (dpi / 72.0)):
-                for ang in np.linspace(0, 2 * math.pi, 24, endpoint=False):
-                    px = cx_img + r_img * math.cos(ang)
-                    py = cy_img + r_img * math.sin(ang)
-                    if _is_empty(px, py, bw_img, bh_img):
-                        test_rect = fitz.Rect(
-                            px * (72 / dpi) - box_w / 2 - 5, py * (72 / dpi) - box_h / 2 - 5,
-                            px * (72 / dpi) + box_w / 2 + 5, py * (72 / dpi) + box_h / 2 + 5,
-                        )
-                        if not any(test_rect.intersects(pr) for pr in placed_rects):
-                            ex_img, ey_img = px, py
-                            found = True
-                            break
-                if found:
-                    break
-
-            ex_pdf, ey_pdf = ex_img * (72 / dpi), ey_img * (72 / dpi)
-
-            text_rect = fitz.Rect(
-                ex_pdf - box_w / 2, ey_pdf - box_h / 2,
-                ex_pdf + box_w / 2, ey_pdf + box_h / 2
-            )
-            placed_rects.append(text_rect)
-
             is_design_note = c.get("is_design_note", False)
             if is_design_note:
+                # ── Find cleanest corner for Design Note ──────────────────────
+                candidates = [
+                    # Top-Left corner
+                    (page_rect.x0 + 50.0, page_rect.y0 + 80.0),
+                    # Bottom-Left corner
+                    (page_rect.x0 + 50.0, page_rect.y1 - 80.0 - box_h),
+                    # Bottom-Right corner
+                    (page_rect.x1 - 50.0 - box_w, page_rect.y1 - 80.0 - box_h)
+                ]
+                
+                best_corner_x, best_corner_y = None, None
+                best_corner_density = 999.0
+                
+                for px_pdf, py_pdf in candidates:
+                    px_img = (px_pdf + box_w / 2.0) * (dpi / 72.0)
+                    py_img = (py_pdf + box_h / 2.0) * (dpi / 72.0)
+                    
+                    x1, y1 = int(px_img - bw_img / 2), int(py_img - bh_img / 2)
+                    x2, y2 = int(px_img + bw_img / 2), int(py_img + bh_img / 2)
+                    if x1 < 0 or y1 < 0 or x2 > w_img or y2 > h_img:
+                        continue
+                    
+                    roi = img_gray[y1:y2, x1:x2]
+                    if roi.size == 0:
+                        continue
+                    density = np.sum(roi < 240) / roi.size
+                    
+                    test_rect = fitz.Rect(px_pdf - 5, py_pdf - 5, px_pdf + box_w + 5, py_pdf + box_h + 5)
+                    # Check overlap with existing placed_rects
+                    if not any(test_rect.intersects(pr) for pr in placed_rects):
+                        if density < best_corner_density:
+                            best_corner_density = density
+                            best_corner_x, best_corner_y = px_pdf, py_pdf
+                
+                if best_corner_x is not None:
+                    text_rect = fitz.Rect(best_corner_x, best_corner_y, best_corner_x + box_w, best_corner_y + box_h)
+                else:
+                    # Fallback if all corners are full
+                    text_rect = fitz.Rect(page_rect.x0 + 50.0, page_rect.y1 - 100.0 - box_h, page_rect.x0 + 50.0 + box_w, page_rect.y1 - 100.0)
+                
+                placed_rects.append(text_rect)
+                hard_rects.append(text_rect)
+                
                 try:
                     annot = page.add_freetext_annot(
                         text_rect, c["text"], fontsize=CALLOUT_FONT_SIZE, fontname="helv",
@@ -195,7 +205,7 @@ def generate_vector_report(
                         align=1,
                     )
                     try:
-                        annot.set_border(width=1.5)
+                        annot.set_border(width=2.5)
                     except Exception:
                         pass
                     annot.update()
@@ -204,34 +214,175 @@ def generate_vector_report(
                     logger.warning(f"Could not place design note: {err}")
                 continue
 
-            # ── Arrow geometry ────────────────────────────────────────────────
+            found = False
+            best_px, best_py = None, None
+            best_density = 999.0
+            
+            # Radii to search: starting close (80pt) to far (450pt)
+            radii = np.arange(80 * (dpi / 72.0), 450 * (dpi / 72.0), 30 * (dpi / 72.0))
+            angles = np.linspace(0, 2 * math.pi, 24, endpoint=False)
+            
+            # --- Attempt 1: Strict (clean background, no symbol guard overlap)
+            for r_img in radii:
+                for ang in angles:
+                    px = cx_img + r_img * math.cos(ang)
+                    py = cy_img + r_img * math.sin(ang)
+                    
+                    # Check image bounds
+                    x1, y1 = int(px - bw_img / 2), int(py - bh_img / 2)
+                    x2, y2 = int(px + bw_img / 2), int(py + bh_img / 2)
+                    if x1 < 0 or y1 < 0 or x2 > w_img or y2 > h_img:
+                        continue
+                    
+                    roi = img_gray[y1:y2, x1:x2]
+                    if roi.size == 0:
+                        continue
+                    density = np.sum(roi < 240) / roi.size
+                    
+                    test_rect = fitz.Rect(
+                        px * (72 / dpi) - box_w / 2 - 5, py * (72 / dpi) - box_h / 2 - 5,
+                        px * (72 / dpi) + box_w / 2 + 5, py * (72 / dpi) + box_h / 2 + 5,
+                    )
+                    
+                    if density < 0.08:
+                        if not any(test_rect.intersects(pr) for pr in placed_rects):
+                            best_px, best_py = px, py
+                            found = True
+                            break
+                if found:
+                    break
+            
+            # --- Attempt 2: Medium (allow slightly noisier background, no symbol guard overlap)
+            if not found:
+                for r_img in radii:
+                    for ang in angles:
+                        px = cx_img + r_img * math.cos(ang)
+                        py = cy_img + r_img * math.sin(ang)
+                        
+                        x1, y1 = int(px - bw_img / 2), int(py - bh_img / 2)
+                        x2, y2 = int(px + bw_img / 2), int(py + bh_img / 2)
+                        if x1 < 0 or y1 < 0 or x2 > w_img or y2 > h_img:
+                            continue
+                        
+                        roi = img_gray[y1:y2, x1:x2]
+                        if roi.size == 0:
+                            continue
+                        density = np.sum(roi < 240) / roi.size
+                        
+                        test_rect = fitz.Rect(
+                            px * (72 / dpi) - box_w / 2 - 5, py * (72 / dpi) - box_h / 2 - 5,
+                            px * (72 / dpi) + box_w / 2 + 5, py * (72 / dpi) + box_h / 2 + 5,
+                        )
+                        
+                        if density < 0.15:
+                            if not any(test_rect.intersects(pr) for pr in placed_rects):
+                                best_px, best_py = px, py
+                                found = True
+                                break
+                    if found:
+                        break
+            
+            # --- Attempt 3: Relaxed (allow symbol guard intersection, but no text box overlaps, clear background)
+            if not found:
+                for r_img in radii:
+                    for ang in angles:
+                        px = cx_img + r_img * math.cos(ang)
+                        py = cy_img + r_img * math.sin(ang)
+                        
+                        x1, y1 = int(px - bw_img / 2), int(py - bh_img / 2)
+                        x2, y2 = int(px + bw_img / 2), int(py + bh_img / 2)
+                        if x1 < 0 or y1 < 0 or x2 > w_img or y2 > h_img:
+                            continue
+                        
+                        roi = img_gray[y1:y2, x1:x2]
+                        if roi.size == 0:
+                            continue
+                        density = np.sum(roi < 240) / roi.size
+                        
+                        test_rect = fitz.Rect(
+                            px * (72 / dpi) - box_w / 2 - 5, py * (72 / dpi) - box_h / 2 - 5,
+                            px * (72 / dpi) + box_w / 2 + 5, py * (72 / dpi) + box_h / 2 + 5,
+                        )
+                        
+                        # Check against hard rects (other callout texts, title box)
+                        if not any(test_rect.intersects(hr) for hr in hard_rects):
+                            # Track best density position that avoids hard overlaps
+                            if density < best_density:
+                                best_density = density
+                                best_px, best_py = px, py
+                                if density < 0.10: # If it's a relatively clean background, accept it immediately
+                                    found = True
+                                    break
+                    if found:
+                        break
+
+            # If we found a good relaxed candidate with low/moderate density, use it!
+            if not found and best_px is not None and best_density < 0.30:
+                found = True
+            
+            # --- Attempt 4: Fallback (absolute backup offset, ensuring we at least don't overlap hard rects)
+            if not found:
+                # If no clear space, default to 180px offset but try to find one that doesn't intersect hard_rects
+                fallback_offsets = [
+                    (180, -180), (-180, -180), (180, 180), (-180, 180),
+                    (250, -250), (-250, -250), (250, 250), (-250, 250)
+                ]
+                for ox, oy in fallback_offsets:
+                    px = cx_img + ox * (dpi / 72.0)
+                    py = cy_img + oy * (dpi / 72.0)
+                    test_rect = fitz.Rect(
+                        px * (72 / dpi) - box_w / 2 - 5, py * (72 / dpi) - box_h / 2 - 5,
+                        px * (72 / dpi) + box_w / 2 + 5, py * (72 / dpi) + box_h / 2 + 5,
+                    )
+                    if not any(test_rect.intersects(hr) for hr in hard_rects):
+                        best_px, best_py = px, py
+                        found = True
+                        break
+                
+                if not found:
+                    # absolute fallback if all offsets are blocked
+                    best_px, best_py = cx_img + 200 * (dpi / 72.0), cy_img - 200 * (dpi / 72.0)
+            
+            ex_img, ey_img = best_px, best_py
+
+            ex_pdf, ey_pdf = ex_img * (72 / dpi), ey_img * (72 / dpi)
+
+            text_rect = fitz.Rect(
+                ex_pdf - box_w / 2, ey_pdf - box_h / 2,
+                ex_pdf + box_w / 2, ey_pdf + box_h / 2
+            )
+            placed_rects.append(text_rect)
+            hard_rects.append(text_rect)
+
+            # ── Arrow geometry with structured horizontal knee bending ────────
             angle = math.atan2(cy_pdf - ey_pdf, cx_pdf - ex_pdf)
-            offset_pts = ARROW_OFFSET_PTS
+            offset_pts = 8.0 # Point very close to symbol center
             tip_x = cx_pdf - offset_pts * math.cos(angle)
             tip_y = cy_pdf - offset_pts * math.sin(angle)
-            knee_x = (ex_pdf + cx_pdf) / 2.0
-            knee_y = (ey_pdf + cy_pdf) / 2.0
-            attach_x = ex_pdf + (box_w / 2.0) * math.cos(angle)
-            attach_y = ey_pdf + (box_h / 2.0) * math.sin(angle)
+
+            # Structured attachment and horizontal knee shoulder
+            if ex_pdf > cx_pdf:
+                attach_x = ex_pdf - box_w / 2.0
+                attach_y = ey_pdf
+                knee_x = attach_x - 12.0 # 12pt horizontal shoulder
+                knee_y = attach_y
+            else:
+                attach_x = ex_pdf + box_w / 2.0
+                attach_y = ey_pdf
+                knee_x = attach_x + 12.0 # 12pt horizontal shoulder
+                knee_y = attach_y
 
             # ── Draw annotation ───────────────────────────────────────────────
             try:
-                try:
-                    annot = page.add_freetext_annot(
-                        text_rect, c["text"], fontsize=CALLOUT_FONT_SIZE, fontname="helv",
-                        text_color=(0, 0, 0), fill_color=(1, 1, 0),
-                        callout=[fitz.Point(tip_x, tip_y), fitz.Point(knee_x, knee_y), fitz.Point(attach_x, attach_y)],
-                        align=1,
-                    )
-                except TypeError:
-                    annot = page.add_freetext_annot(
-                        text_rect, c["text"], fontsize=CALLOUT_FONT_SIZE, fontname="helv",
-                        text_color=(0, 0, 0), fill_color=(1, 1, 0),
-                        callout=[fitz.Point(tip_x, tip_y), fitz.Point(attach_x, attach_y)],
-                    )
+                annot = page.add_freetext_annot(
+                    text_rect, c["text"], fontsize=CALLOUT_FONT_SIZE, fontname="helv",
+                    text_color=(0, 0, 0), fill_color=(1, 1, 0),
+                    callout=[fitz.Point(tip_x, tip_y), fitz.Point(knee_x, knee_y), fitz.Point(attach_x, attach_y)],
+                    align=1,
+                )
 
                 try:
-                    annot.set_border(width=1.5)
+                    annot.set_border(width=2.5)
                 except Exception:
                     pass
                 annot.update()

@@ -66,6 +66,7 @@ class JobStatusResponse(BaseModel):
     error: Optional[str] = None
     sample_tiles: Optional[list[int]] = None
     flagged_tiles: Optional[list[int]] = None
+    all_callouts: Optional[list[dict]] = None
 
 
 class JobResultResponse(BaseModel):

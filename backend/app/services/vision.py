@@ -16,6 +16,7 @@ import cv2
 import numpy as np
 import easyocr
 from ultralytics import YOLO
+import torch
 
 from app.services.utils import (
     clean_ocr_text,
@@ -42,6 +43,7 @@ class TelecomDetector:
         dpi: int = 600,
     ) -> None:
         self.dpi = dpi
+        logger.info(f"CUDA available: {torch.cuda.is_available()}, DPI set to {self.dpi}")
         logger.info(f"Loading YOLO from {main_model_path} (DPI: {self.dpi})...")
         self.model = YOLO(str(main_model_path))
 

@@ -622,6 +622,7 @@ async def get_job_status(
         error=job["error"],
         sample_tiles=job.get("sample_tiles"),
         flagged_tiles=job.get("flagged_tiles"),
+        all_callouts=job.get("all_callouts") or job.get("all_callout_records"),
     )
 
 

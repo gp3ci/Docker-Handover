@@ -25,18 +25,18 @@ export const CoaxSection = () => {
   // Handle specifically when grid type button is clicked
   const handleGridTypeClick = (type) => {
     setBeforeNodeType(type);
-    
+
     // Auto-fill logic (Triggered only on click)
     if (type === 'none' || !nodeName.trim()) return;
-    
+
     const parts = nodeName.split('_').map(p => p.trim()).filter(Boolean);
     if (parts.length === 0) return;
 
     const beforeLimit = type === '3x3' ? 3 : 4;
-    
+
     // Update Before Nodes (Source)
     setBeforeNodes(prev => {
-      const next = ['', '', '', '']; 
+      const next = ['', '', '', ''];
       for (let i = 0; i < beforeLimit; i++) {
         if (parts[i]) next[i] = parts[i];
       }
@@ -160,14 +160,14 @@ export const CoaxSection = () => {
                   ))}
                 </div>
                 <motion.div layout initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ duration: 0.3 }} style={{ marginTop: '0.65rem', padding: '0.6rem 0.875rem', backgroundColor: dpi === 300 ? 'rgba(16,185,129,0.08)' : dpi === 600 ? 'rgba(79,70,229,0.08)' : 'rgba(245,158,11,0.08)', border: `1px solid ${dpi === 300 ? 'rgba(16,185,129,0.25)' : dpi === 600 ? 'rgba(79,70,229,0.25)' : 'rgba(245,158,11,0.3)'}`, borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
-                    <motion.div key={dpi} initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2 }} style={{ fontSize: '0.8rem', lineHeight: 1.5, color: 'var(--text-secondary)', display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                      <Info size={14} style={{ flexShrink: 0, marginTop: '2px', color: 'var(--accent-primary)' }} />
-                      <span>
-                        {dpi === 300 && <><strong style={{ color: '#059669' }}>Small map:</strong> 300 DPI is ideal for compact cable maps with fewer nodes and short spans.</>}
-                        {dpi === 600 && <><strong style={{ color: 'var(--accent-primary)' }}>Medium map:</strong> 600 DPI balances detail and processing speed for moderately sized maps.</>}
-                        {dpi === 800 && <><strong style={{ color: '#b45309' }}>Large map:</strong> 800 DPI is best for high-density maps with complex node structures and long cable runs.</>}
-                      </span>
-                    </motion.div>
+                  <motion.div key={dpi} initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2 }} style={{ fontSize: '0.8rem', lineHeight: 1.5, color: 'var(--text-secondary)', display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                    <Info size={14} style={{ flexShrink: 0, marginTop: '2px', color: 'var(--accent-primary)' }} />
+                    <span>
+                      {dpi === 300 && <><strong style={{ color: '#059669' }}>Small map:</strong> 300 DPI is ideal for compact cable maps with fewer nodes and short spans.</>}
+                      {dpi === 600 && <><strong style={{ color: 'var(--accent-primary)' }}>Medium map:</strong> 600 DPI balances detail and processing speed for moderately sized maps.</>}
+                      {dpi === 800 && <><strong style={{ color: '#b45309' }}>Large map:</strong> 800 DPI is best for high-density maps with complex node structures and long cable runs.</>}
+                    </span>
+                  </motion.div>
                 </motion.div>
               </div>
               <div>
@@ -222,22 +222,22 @@ export const CoaxSection = () => {
                   </>
                 )}
               </motion.div>
-                {beforeNodeType !== 'none' ? (
-                  <motion.div key="node-inputs" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ duration: 0.3 }}>
-                    <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem' }}>Source Nodes ({beforeNodeType === '3x3' ? '3' : '4'} Required)</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                      <Input placeholder="Node Name 1" value={beforeNodes[0]} onChange={(e) => handleUpdateBeforeNode(0, e.target.value)} />
-                      <Input placeholder="Node Name 2" value={beforeNodes[1]} onChange={(e) => handleUpdateBeforeNode(1, e.target.value)} />
-                      <Input placeholder="Node Name 3" value={beforeNodes[2]} onChange={(e) => handleUpdateBeforeNode(2, e.target.value)} />
-                      {beforeNodeType === '4x4' && <Input placeholder="Node Name 4" value={beforeNodes[3]} onChange={(e) => handleUpdateBeforeNode(3, e.target.value)} />}
-                    </div>
-                  </motion.div>
-                ) : (
-                  <motion.div key="no-nodes" initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} style={{ padding: '1.25rem', backgroundColor: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-muted)' }}>
-                    <CheckCircle2 size={18} className="text-success" />
-                    <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>No node names required for this analysis.</span>
-                  </motion.div>
-                )}
+              {beforeNodeType !== 'none' ? (
+                <motion.div key="node-inputs" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ duration: 0.3 }}>
+                  <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem' }}>Source Nodes ({beforeNodeType === '3x3' ? '3' : '4'} Required)</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <Input placeholder="Node Name 1" value={beforeNodes[0]} onChange={(e) => handleUpdateBeforeNode(0, e.target.value)} />
+                    <Input placeholder="Node Name 2" value={beforeNodes[1]} onChange={(e) => handleUpdateBeforeNode(1, e.target.value)} />
+                    <Input placeholder="Node Name 3" value={beforeNodes[2]} onChange={(e) => handleUpdateBeforeNode(2, e.target.value)} />
+                    {beforeNodeType === '4x4' && <Input placeholder="Node Name 4" value={beforeNodes[3]} onChange={(e) => handleUpdateBeforeNode(3, e.target.value)} />}
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div key="no-nodes" initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} style={{ padding: '1.25rem', backgroundColor: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-muted)' }}>
+                  <CheckCircle2 size={18} className="text-success" />
+                  <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>No node names required for this analysis.</span>
+                </motion.div>
+              )}
             </div>
           </Card>
         </motion.div>
@@ -277,20 +277,20 @@ export const CoaxSection = () => {
                   </>
                 )}
               </motion.div>
-                {beforeNodeType !== 'none' ? (
-                  <motion.div key="after-node-inputs" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ duration: 0.3 }}>
-                    <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem' }}>Destination Nodes (2 Required)</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                      <Input placeholder="After Node 1" value={afterNodes[0]} onChange={(e) => handleUpdateAfterNode(0, e.target.value)} />
-                      <Input placeholder="After Node 2" value={afterNodes[1]} onChange={(e) => handleUpdateAfterNode(1, e.target.value)} />
-                    </div>
-                  </motion.div>
-                ) : (
-                  <motion.div key="after-no-nodes" initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} style={{ padding: '1.25rem', backgroundColor: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-muted)' }}>
-                    <CheckCircle2 size={18} className="text-success" />
-                    <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>No destination nodes required.</span>
-                  </motion.div>
-                )}
+              {beforeNodeType !== 'none' ? (
+                <motion.div key="after-node-inputs" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ duration: 0.3 }}>
+                  <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem' }}>Destination Nodes (2 Required)</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <Input placeholder="After Node 1" value={afterNodes[0]} onChange={(e) => handleUpdateAfterNode(0, e.target.value)} />
+                    <Input placeholder="After Node 2" value={afterNodes[1]} onChange={(e) => handleUpdateAfterNode(1, e.target.value)} />
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div key="after-no-nodes" initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} style={{ padding: '1.25rem', backgroundColor: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-muted)' }}>
+                  <CheckCircle2 size={18} className="text-success" />
+                  <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>No destination nodes required.</span>
+                </motion.div>
+              )}
             </div>
           </Card>
         </motion.div>
