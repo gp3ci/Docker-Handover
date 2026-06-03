@@ -72,9 +72,14 @@ def run_pipeline_sync(job_id, job_store, settings, detector=None, **kwargs):
         # ── Phase 1: Alignment ────────────────────────────────────────────────
         if job.get("status") == JobStatus.QUEUED:
             _update(JobStatus.ALIGNING, 5.0, "Aligning Coax Maps...")
-            fb = _pdf_to_bgr(Path(job["before_path"]), dpi=dpi)
-            fa = _pdf_to_bgr(Path(job["after_path"]),  dpi=dpi)
-            fb, fa, W = align_and_pad_maps(fb, fa)
+            fb_raw = _pdf_to_bgr(Path(job["before_path"]), dpi=dpi)
+            fa_raw = _pdf_to_bgr(Path(job["after_path"]),  dpi=dpi)
+            fb, fa, W = align_and_pad_maps(fb_raw, fa_raw)
+            
+            import gc
+            del fb_raw, fa_raw
+            gc.collect()
+
             cv2.imwrite(str(out / "aligned_after.png"),  fa)
             cv2.imwrite(str(out / "aligned_before.png"), fb)
             W_inv = np.linalg.inv(W) if W is not None else np.eye(3)
@@ -124,6 +129,8 @@ def run_pipeline_sync(job_id, job_store, settings, detector=None, **kwargs):
                 "progress":     15.0,
                 "sample_tiles": sample_indices,
             })
+            del fb, fa
+            gc.collect()
             return
 
         # ── Phase 2: Detection + Reporting ───────────────────────────────────
@@ -197,6 +204,17 @@ def run_pipeline_sync(job_id, job_store, settings, detector=None, **kwargs):
                     cv2.imwrite(str(td_before / f"before_{t_idx}.png"), b_tile)
                     cv2.imwrite(str(td_after  / f"after_{t_idx}.png"),  a_tile)
 
+                # Periodic memory cleanup to prevent OOM
+                if tile_count % 10 == 0:
+                    import gc
+                    gc.collect()
+                    try:
+                        import torch
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+                    except ImportError:
+                        pass
+
             # Save state and halt for human review
             # Extract unique tile indices that have flagged callouts
             flagged_indices = list({c["tile_idx"] for c in callout_records if c.get("type") == "FLAGGED"})
@@ -208,6 +226,9 @@ def run_pipeline_sync(job_id, job_store, settings, detector=None, **kwargs):
                 "flagged_tiles": flagged_indices,
                 "all_callouts": callout_records
             })
+            del fa, fb
+            import gc
+            gc.collect()
             return
 
         if job.get("status") == JobStatus.REPORTING:
