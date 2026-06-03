@@ -65,6 +65,10 @@ def run_pipeline_sync(job_id, job_store, settings, detector=None, **kwargs):
         out.mkdir(parents=True, exist_ok=True)
         dpi = job.get("dpi", 300)
 
+        # Route selected DPI to detector so it loads correct thresholds
+        if detector is not None:
+            detector.dpi = dpi
+
         # ── Phase 1: Alignment ────────────────────────────────────────────────
         if job.get("status") == JobStatus.QUEUED:
             _update(JobStatus.ALIGNING, 5.0, "Aligning Coax Maps...")
@@ -78,7 +82,7 @@ def run_pipeline_sync(job_id, job_store, settings, detector=None, **kwargs):
 
             # ── Save sample tiles for DPI confirmation preview ────────────────
             # The frontend shows tiles/{before|after}/before_N.png & after_N.png
-            tile_size = settings.TILE_SIZE
+            tile_size = 640
             sample_indices = []
             
             td_before = out / "tiles" / "before"
@@ -86,25 +90,23 @@ def run_pipeline_sync(job_id, job_store, settings, detector=None, **kwargs):
             td_before.mkdir(parents=True, exist_ok=True)
             td_after.mkdir(parents=True, exist_ok=True)
 
-            # Save ALL tiles for comprehensive review, but only surface interesting ones for DPI check
-            for t in iter_tiles(fa, tile_size, settings.TILE_OVERLAP):
+            # Save ONLY a few sample tiles for DPI confirmation preview (limit to 15 to prevent disk I/O overhead)
+            for t in iter_tiles(fa, tile_size, 0.1):
                 s_num = t["index"]
                 tx, ty = t["x"], t["y"]
                 
-                # Extract tiles from both maps at the same coordinates
-                before_tile = fb[ty:ty+tile_size, tx:tx+tile_size]
-                after_tile  = t["tile"] # fa[ty:ty+tile_size, tx:tx+tile_size]
-                
-                cv2.imwrite(str(td_before / f"before_{s_num}.png"), before_tile)
-                cv2.imwrite(str(td_after  / f"after_{s_num}.png"),  after_tile)
-                
+                after_tile  = t["tile"]
                 # Filter out mostly blank tiles from the frontend DPI preview
                 gray = cv2.cvtColor(after_tile, cv2.COLOR_BGR2GRAY)
                 if (np.sum(gray < 240) / gray.size) > 0.01:
+                    before_tile = fb[ty:ty+tile_size, tx:tx+tile_size]
+                    cv2.imwrite(str(td_before / f"before_{s_num}.png"), before_tile)
+                    cv2.imwrite(str(td_after  / f"after_{s_num}.png"),  after_tile)
                     sample_indices.append(s_num)
-                
-                if s_num % 10 == 0:
                     logger.info(f"[{job_id}] Saved sample tile pair {s_num}")
+                    
+                    if len(sample_indices) >= 15:
+                        break
 
             if not sample_indices:
                 # Fallback: save top-left tile unconditionally
@@ -134,13 +136,8 @@ def run_pipeline_sync(job_id, job_store, settings, detector=None, **kwargs):
             callout_records: list[dict] = []
             tile_offsets:    dict       = {}
 
-            # Ensure the detector's thresholds match the job's DPI
-            if detector is not None and hasattr(detector, "dpi"):
-                detector.dpi = dpi
-                logger.info(f"Updated detector DPI to {dpi} for current job.")
-
             tile_count = 0
-            all_tiles = list(iter_tiles(fa, settings.TILE_SIZE, settings.TILE_OVERLAP))
+            all_tiles = list(iter_tiles(fa, 640, 0.1))
             total_tiles = len(all_tiles)
 
             for t in all_tiles:
@@ -153,13 +150,14 @@ def run_pipeline_sync(job_id, job_store, settings, detector=None, **kwargs):
                     _update(JobStatus.PROCESSING, 20.0 + (tile_count / total_tiles * 50.0), 
                            f"Analysing map... tile {tile_count}/{total_tiles}")
 
-                b_tile = fb[ty: ty + settings.TILE_SIZE, tx: tx + settings.TILE_SIZE]
+                b_tile = fb[ty: ty + 640, tx: tx + 640]
                 a_tile = t["tile"]
                 objs_b = detector.detect_objects(b_tile, conf_threshold=0.01)
                 objs_a = detector.detect_objects(a_tile, conf_threshold=0.01)
                 objs_b = detector.run_ocr_on_objects(b_tile, objs_b)
                 objs_a = detector.run_ocr_on_objects(a_tile, objs_a)
                 m, r, a = match_objects(objs_b, objs_a)
+                tile_flagged = False
                 for c in re.generate_callouts(m, r, a,
                                                 before_node_type=job.get("before_node_type"),
                                                 before_node_names=job.get("before_node_names"),
@@ -172,6 +170,8 @@ def run_pipeline_sync(job_id, job_store, settings, detector=None, **kwargs):
                     
                     text_upper = c["text"].upper()
                     is_flagged = "WARNING" in text_upper or text_upper in ["G", "POWERBLOCK", "ADD POWER BLOCK", "REMOVE POWER BLOCK"]
+                    if is_flagged:
+                        tile_flagged = True
                     
                     callout_records.append({
                         "tile_idx": t_idx,
@@ -182,6 +182,15 @@ def run_pipeline_sync(job_id, job_store, settings, detector=None, **kwargs):
                         "text": c["text"],
                         "type": "FLAGGED" if is_flagged else "NORMAL"
                     })
+
+                # Write flagged tiles to disk on the fly so the frontend can load them
+                if tile_flagged:
+                    td_before = out / "tiles" / "before"
+                    td_after  = out / "tiles" / "after"
+                    td_before.mkdir(parents=True, exist_ok=True)
+                    td_after.mkdir(parents=True, exist_ok=True)
+                    cv2.imwrite(str(td_before / f"before_{t_idx}.png"), b_tile)
+                    cv2.imwrite(str(td_after  / f"after_{t_idx}.png"),  a_tile)
 
             # Save state and halt for human review
             # Extract unique tile indices that have flagged callouts
@@ -233,7 +242,7 @@ def run_pipeline_sync(job_id, job_store, settings, detector=None, **kwargs):
             })
 
             tile_offsets = {}
-            for t in iter_tiles(fa, settings.TILE_SIZE, settings.TILE_OVERLAP):
+            for t in iter_tiles(fa, 640, 0.1):
                 tile_offsets[t["index"]] = (t["x"], t["y"])
 
             generate_vector_report(
