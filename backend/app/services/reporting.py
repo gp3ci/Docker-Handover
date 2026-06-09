@@ -21,7 +21,7 @@ def _patch_annot_color(doc: fitz.Document, annot: fitz.Annot, font_size: int = 9
             raw = doc.xref_stream(n_xref)
             doc.update_stream(n_xref, raw.replace(b"0 0 0 RG", b"1 0 0 RG"))
 
-        doc.xref_set_key(annot.xref, "C",  "[1 1 0]")
+        doc.xref_set_key(annot.xref, "C",  "[1 0 0]")
         doc.xref_set_key(annot.xref, "IC", "[1 1 0]")
         doc.xref_set_key(annot.xref, "DA", f"(1 0 0 RG 0 0 0 rg /Helv {font_size} Tf)")
         doc.xref_set_key(
@@ -225,6 +225,23 @@ def generate_vector_report(
             found = False
             best_px, best_py = None, None
             best_density = 999.0
+
+            # Dynamic density thresholds based on DPI to prevent overlap with thin lines
+            if dpi >= 750:     # 800 DPI
+                thresh_1 = 0.008
+                thresh_2 = 0.02
+                thresh_3_sub = 0.015
+                thresh_3_limit = 0.04
+            elif dpi >= 450:   # 600 DPI
+                thresh_1 = 0.012
+                thresh_2 = 0.03
+                thresh_3_sub = 0.02
+                thresh_3_limit = 0.05
+            else:              # 300 DPI and lower
+                thresh_1 = 0.08
+                thresh_2 = 0.15
+                thresh_3_sub = 0.10
+                thresh_3_limit = 0.30
             
             # Radii to search: starting close (80pt) to far (450pt)
             radii = np.arange(80 * (dpi / 72.0), 450 * (dpi / 72.0), 30 * (dpi / 72.0))
@@ -252,7 +269,7 @@ def generate_vector_report(
                         px * (72 / dpi) + box_w / 2 + 5, py * (72 / dpi) + box_h / 2 + 5,
                     )
                     
-                    if density < 0.08:
+                    if density < thresh_1:
                         if not any(test_rect.intersects(pr) for pr in placed_rects):
                             best_px, best_py = px, py
                             found = True
@@ -282,7 +299,7 @@ def generate_vector_report(
                             px * (72 / dpi) + box_w / 2 + 5, py * (72 / dpi) + box_h / 2 + 5,
                         )
                         
-                        if density < 0.15:
+                        if density < thresh_2:
                             if not any(test_rect.intersects(pr) for pr in placed_rects):
                                 best_px, best_py = px, py
                                 found = True
@@ -318,14 +335,14 @@ def generate_vector_report(
                             if density < best_density:
                                 best_density = density
                                 best_px, best_py = px, py
-                                if density < 0.10: # If it's a relatively clean background, accept it immediately
+                                if density < thresh_3_sub: # If it's a relatively clean background, accept it immediately
                                     found = True
                                     break
                     if found:
                         break
 
             # If we found a good relaxed candidate with low/moderate density, use it!
-            if not found and best_px is not None and best_density < 0.30:
+            if not found and best_px is not None and best_density < thresh_3_limit:
                 found = True
             
             # --- Attempt 4: Fallback (absolute backup offset, ensuring we at least don't overlap hard rects)

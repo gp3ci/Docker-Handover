@@ -88,8 +88,12 @@ def align_and_pad_maps(
     h2, w2 = img_after.shape[:2]
 
     # Downsample for fast feature detection
-    scale_1 = 1500.0 / w1
-    scale_2 = 1500.0 / w2
+    target_width = 1500.0
+    if w1 > 10000 or h1 > 10000 or w2 > 10000 or h2 > 10000:
+        target_width = 3000.0
+        logger.info(f"High resolution image detected. Using SIFT downsample target width of {target_width}")
+    scale_1 = target_width / w1
+    scale_2 = target_width / w2
     small_before = cv2.resize(img_before, (0, 0), fx=scale_1, fy=scale_1)
     small_after = cv2.resize(img_after, (0, 0), fx=scale_2, fy=scale_2)
 

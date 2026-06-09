@@ -102,8 +102,15 @@ def run_pipeline_sync(job_id, job_store, settings, detector=None, **kwargs):
                 
                 after_tile  = t["tile"]
                 # Filter out mostly blank tiles from the frontend DPI preview
-                gray = cv2.cvtColor(after_tile, cv2.COLOR_BGR2GRAY)
-                if (np.sum(gray < 240) / gray.size) > 0.01:
+                is_non_blank = False
+                if dpi >= 800:
+                    # Sensitive check for high DPI maps to catch thin lines
+                    is_non_blank = np.mean(after_tile) < 254.8
+                else:
+                    gray = cv2.cvtColor(after_tile, cv2.COLOR_BGR2GRAY)
+                    is_non_blank = (np.sum(gray < 240) / gray.size) > 0.01
+
+                if is_non_blank:
                     before_tile = fb[ty:ty+tile_size, tx:tx+tile_size]
                     cv2.imwrite(str(td_before / f"before_{s_num}.png"), before_tile)
                     cv2.imwrite(str(td_after  / f"after_{s_num}.png"),  after_tile)
